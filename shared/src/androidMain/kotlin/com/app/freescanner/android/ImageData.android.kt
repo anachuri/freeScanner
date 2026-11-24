@@ -42,8 +42,18 @@ fun Bitmap.toImageData(): ImageData {
     return ImageData(w, h, out)
 }
 
+/** Reduce un bitmap para que su lado mayor no supere [maxDim] px. */
+fun Bitmap.downscaled(maxDim: Int): Bitmap {
+    val max = maxOf(width, height)
+    if (max <= maxDim) return this
+    val scale = maxDim.toFloat() / max
+    val w = (width * scale).toInt().coerceAtLeast(1)
+    val h = (height * scale).toInt().coerceAtLeast(1)
+    return Bitmap.createScaledBitmap(this, w, h, true)
+}
+
 /** Decodifica una imagen desde un content:// Uri, limitando la resolución máxima. */
-fun loadImageData(context: Context, uri: Uri, maxDim: Int = 2560): ImageData? {
+fun loadImageData(context: Context, uri: Uri, maxDim: Int = 2048): ImageData? {
     return try {
         val resolver = context.contentResolver
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -56,7 +66,7 @@ fun loadImageData(context: Context, uri: Uri, maxDim: Int = 2560): ImageData? {
         val opts = BitmapFactory.Options().apply { inSampleSize = sample }
         val bmp = resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
             ?: return null
-        bmp.toImageData()
+        bmp.downscaled(maxDim).toImageData()
     } catch (e: Exception) {
         null
     }

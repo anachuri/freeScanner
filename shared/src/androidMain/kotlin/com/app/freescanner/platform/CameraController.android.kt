@@ -10,6 +10,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.app.freescanner.android.downscaled
 import com.app.freescanner.android.rotated
 import com.app.freescanner.android.toImageData
 
@@ -67,7 +68,9 @@ actual class CameraController actual constructor() {
                 try {
                     val bitmap = image.toBitmap()
                     val rotated = bitmap.rotated(image.imageInfo.rotationDegrees)
-                    onResult(rotated.toImageData())
+                    // Limitar resolución para evitar OOM: ImageData + Bitmap +
+                    // arrays intermedios multiplican el consumo de memoria.
+                    onResult(rotated.downscaled(2048).toImageData())
                 } catch (_: Exception) {
                     onResult(null)
                 } finally {

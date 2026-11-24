@@ -8,14 +8,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -30,6 +33,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -70,9 +75,10 @@ import kotlin.math.roundToInt
 
 @Composable
 fun DocumentsScreen(vm: ScannerViewModel) {
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Mis documentos", style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(12.dp))
+    Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+        Column(modifier = Modifier.weight(1f).fillMaxWidth().padding(16.dp)) {
+            Text("Mis documentos", style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.height(12.dp))
 
         if (vm.documents.isEmpty()) {
             Text(
@@ -107,12 +113,14 @@ fun DocumentsScreen(vm: ScannerViewModel) {
                 }
             }
         }
+        }
 
-        Spacer(Modifier.weight(1f))
-        Button(
-            onClick = { vm.startScanning() },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-        ) { Text("Nuevo escaneo") }
+        BottomActionBar {
+            Button(
+                onClick = { vm.startScanning() },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+            ) { Text("Nuevo escaneo") }
+        }
     }
 }
 
@@ -175,14 +183,24 @@ fun CameraScreen(
             }
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            if (vm.workingPages.isNotEmpty()) {
-                OutlinedButton(onClick = { showSaveDialog = true }) { Text("Guardar (${vm.workingPages.size})") }
-                TextButton(onClick = { vm.cancelWorkingSession() }) { Text("Descartar") }
-            } else {
+        if (vm.workingPages.isNotEmpty()) {
+            BottomActionBar {
+                Button(
+                    onClick = { showSaveDialog = true },
+                    modifier = Modifier.weight(1f).height(50.dp),
+                ) { Text("Guardar (${vm.workingPages.size})") }
+                OutlinedButton(
+                    onClick = { vm.cancelWorkingSession() },
+                    modifier = Modifier.height(50.dp),
+                ) { Text("Descartar") }
+            }
+        } else {
+            BottomActionBar {
+                OutlinedButton(
+                    onClick = onPickImage ?: {},
+                    enabled = onPickImage != null,
+                    modifier = Modifier.weight(1f).height(50.dp),
+                ) { Text("Importar") }
                 Button(
                     onClick = {
                         session?.controller?.capturePhoto { image ->
@@ -190,13 +208,8 @@ fun CameraScreen(
                         }
                     },
                     enabled = session?.hasPermission == true,
-                    modifier = Modifier.weight(1f).height(56.dp),
+                    modifier = Modifier.weight(1.4f).height(50.dp),
                 ) { Text("Capturar") }
-                if (onPickImage != null) {
-                    OutlinedButton(onClick = onPickImage, modifier = Modifier.weight(1f)) {
-                        Text("Importar")
-                    }
-                }
             }
         }
     }
@@ -310,19 +323,20 @@ private fun ReviewAdjustView(vm: ScannerViewModel) {
             }
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        BottomActionBar {
             TextButton(onClick = { vm.detectEdgesAgain() }) { Text("Detectar") }
             Spacer(Modifier.weight(1f))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("OCR", modifier = Modifier.padding(end = 4.dp))
+                Text(
+                    "OCR",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 4.dp),
+                )
                 Switch(checked = vm.ocrEnabled, onCheckedChange = { vm.ocrEnabled = it })
             }
-            Button(onClick = { vm.applyReview() }, modifier = Modifier.height(48.dp)) { Text("Aplicar") }
             TextButton(onClick = { vm.retake() }) { Text("Repetir") }
+            Button(onClick = { vm.applyReview() }, modifier = Modifier.height(46.dp)) { Text("Aplicar") }
         }
     }
 }
@@ -355,13 +369,10 @@ private fun ReviewResultView(vm: ScannerViewModel, result: ImageData) {
             }
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+        BottomActionBar {
             TextButton(onClick = { vm.backToAdjust() }) { Text("Ajustar") }
             Spacer(Modifier.weight(1f))
-            Button(onClick = { vm.confirmReview() }, modifier = Modifier.height(48.dp)) { Text("Usar página") }
+            Button(onClick = { vm.confirmReview() }, modifier = Modifier.height(46.dp)) { Text("Usar página") }
         }
     }
 }
@@ -373,8 +384,11 @@ private fun ReviewResultView(vm: ScannerViewModel, result: ImageData) {
 @Composable
 fun DocumentPagesScreen(vm: ScannerViewModel) {
     val doc = vm.selectedDocument ?: return
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             TextButton(onClick = { vm.backToDocuments() }) { Text("←") }
             Text(doc.name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             TextButton(onClick = { vm.exportDocument(doc) }) { Text("Exportar PDF") }
@@ -382,9 +396,16 @@ fun DocumentPagesScreen(vm: ScannerViewModel) {
         Spacer(Modifier.height(8.dp))
 
         if (vm.documentPages.isEmpty()) {
-            Text("Cargando páginas…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                "Cargando páginas…",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(16.dp),
+            )
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 items(vm.documentPages, key = { it.id }) { page ->
                     SavedPageItem(vm, page)
                 }
@@ -437,3 +458,32 @@ private fun SavedPageItem(vm: ScannerViewModel, page: Page) {
 /** Escala de ContentScale.Fit para centrar [srcW]x[srcH] dentro de [dstW]x[dstH]. */
 private fun fitScale(srcW: Int, srcH: Int, dstW: Int, dstH: Int): Float =
     min(dstW.toFloat() / srcW, dstH.toFloat() / srcH)
+
+/**
+ * Barra inferior fija con esquinas redondeadas, elevación y padding seguro
+ * para no invadir la zona de gestos/botones de navegación del sistema.
+ */
+@Composable
+private fun BottomActionBar(content: @Composable RowScope.() -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 12.dp,
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+            ),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 3.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            content = content,
+        )
+    }
+}
