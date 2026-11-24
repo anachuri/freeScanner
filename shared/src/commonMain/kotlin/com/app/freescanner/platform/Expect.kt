@@ -55,6 +55,8 @@ expect class OcrEngine() {
 /**
  * Exportador a PDF. En Android usa PDFBox-Android; en iOS se evaluará una
  * alternativa multiplataforma o `actual` específico - FASE 2.
+ * Los formatos Office (docx/xlsx/pptx) se generan en commonMain con
+ * `com.app.freescanner.export.DocumentExporter` (OOXML puro, sin dependencias).
  */
 expect class PdfExporter() {
     fun exportToPdf(pages: List<ImageData>, outputPath: String): Boolean

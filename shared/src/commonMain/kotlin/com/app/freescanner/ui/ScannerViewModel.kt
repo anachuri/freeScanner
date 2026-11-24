@@ -5,6 +5,9 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.app.freescanner.data.DocumentStore
+import com.app.freescanner.export.DocumentExporter
+import com.app.freescanner.export.ExportFormat
+import com.app.freescanner.export.ExportPage
 import com.app.freescanner.model.Document
 import com.app.freescanner.model.ImageData
 import com.app.freescanner.model.Page
@@ -26,17 +29,18 @@ import okio.Path.Companion.toPath
 class WorkingPage(
     val id: String,
     val image: ImageData,
-    val ocrText: String?,
+    var ocrText: String?,
 )
 
 class ScannerViewModel {
 
-    enum class Screen { DOCUMENTS, CAMERA, REVIEW, DOCUMENT_PAGES }
+    enum class Screen { DOCUMENTS, CAMERA, REVIEW, DOCUMENT_PAGES, CONVERT }
 
     private val store = DocumentStore()
     private val scanner = DocumentScanner()
     private val ocrEngine = OcrEngine()
     private val pdfExporter = PdfExporter()
+    private val docExporter = DocumentExporter()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val documents = mutableStateListOf<Document>()
@@ -60,6 +64,10 @@ class ScannerViewModel {
         private set
     var ocrEnabled by mutableStateOf(false)
 
+    /** Formato elegido en "Convertir a" que está esperando páginas de origen. */
+    var pendingExportFormat by mutableStateOf<ExportFormat?>(null)
+        private set
+
     var selectedDocument by mutableStateOf<Document?>(null)
         private set
 
@@ -69,6 +77,35 @@ class ScannerViewModel {
 
     fun startScanning() {
         screen = Screen.CAMERA
+    }
+
+    /** Abre la pantalla de elección de origen para convertir a [format]. */
+    fun requestConvert(format: ExportFormat) {
+        pendingExportFormat = format
+        screen = Screen.CONVERT
+    }
+
+    fun clearPendingExport() {
+        pendingExportFormat = null
+    }
+
+    /** Navegación hacia atrás equivalente al botón físico/gesto del sistema. */
+    fun navigateBack() {
+        when (screen) {
+            Screen.DOCUMENTS -> Unit
+            Screen.CONVERT -> screen = Screen.DOCUMENTS
+            Screen.DOCUMENT_PAGES -> backToDocuments()
+            Screen.CAMERA -> screen = Screen.DOCUMENTS
+            Screen.REVIEW -> {
+                if (reviewResult != null) {
+                    backToAdjust()
+                } else {
+                    reviewSource = null
+                    reviewCorners = null
+                    screen = Screen.CAMERA
+                }
+            }
+        }
     }
 
     fun refreshDocuments() {
@@ -165,6 +202,30 @@ class ScannerViewModel {
         if (index in workingPages.indices) workingPages.removeAt(index)
     }
 
+    /**
+     * Aplica OCR a todas las páginas de la sesión que aún no tengan texto.
+     * [onDone] se invoca al terminar (en el hilo principal).
+     */
+    fun applyOcrToWorkingPages(onDone: () -> Unit = {}) {
+        if (workingPages.isEmpty()) {
+            onDone()
+            return
+        }
+        isProcessing = true
+        scope.launch {
+            workingPages.forEach { page ->
+                if (page.ocrText.isNullOrBlank()) {
+                    val text = runCatching {
+                        ocrEngine.recognizeText(page.image, "spa")
+                    }.getOrNull()
+                    if (!text.isNullOrBlank()) page.ocrText = text
+                }
+            }
+            isProcessing = false
+            withContext(Dispatchers.Main) { onDone() }
+        }
+    }
+
     fun saveWorkingDocument(name: String) {
         if (workingPages.isEmpty()) return
         scope.launch {
@@ -217,22 +278,77 @@ class ScannerViewModel {
     suspend fun loadPageImage(page: Page): ImageData? =
         withContext(Dispatchers.Default) { store.loadPageImage(page) }
 
+    /** Exporta un documento guardado a PDF (PDFBox-Android). */
     fun exportDocument(document: Document) {
         scope.launch {
             isProcessing = true
             val result = withContext(Dispatchers.Default) {
                 val pages = store.pagesForDocument(document.id)
                     .mapNotNull { store.loadPageImage(it) }
-                if (pages.isEmpty()) return@withContext false
+                if (pages.isEmpty()) return@withContext null
                 val dir = "${appFilesDir()}/exports".toPath()
                 FileSystem.SYSTEM.createDirectories(dir)
-                val out = "${appFilesDir()}/exports/${document.name}.pdf"
-                pdfExporter.exportToPdf(pages, out)
+                val out = "${appFilesDir()}/exports/${sanitizeFileName(document.name)}.pdf"
+                if (pdfExporter.exportToPdf(pages, out)) out else null
             }
             isProcessing = false
-            status = if (result) "PDF exportado: ${document.name}.pdf" else "Error al exportar PDF"
+            status = if (result != null) "Exportado: $result" else "Error al exportar PDF"
         }
     }
+
+    // ---------- Exportación a Office (xlsx / docx / pptx) ----------
+
+    /** Exporta un documento guardado al formato Office indicado. */
+    fun exportDocumentAs(document: Document, format: ExportFormat) {
+        scope.launch {
+            isProcessing = true
+            val result = withContext(Dispatchers.Default) {
+                val pages = store.pagesForDocument(document.id)
+                    .mapNotNull { page ->
+                        store.loadPageImage(page)?.let { ExportPage(it, page.ocrText) }
+                    }
+                exportPagesTo(pages, format, sanitizeFileName(document.name))
+            }
+            isProcessing = false
+            status = if (result) {
+                "Exportado: ${sanitizeFileName(document.name)}.${format.extension}"
+            } else {
+                "Error al exportar ${format.extension.uppercase()}"
+            }
+        }
+    }
+
+    /** Exporta las páginas de la sesión de escaneo actual (sin guardar). */
+    fun exportWorkingSessionAs(format: ExportFormat) {
+        val pages = workingPages.map { ExportPage(it.image, it.ocrText) }
+        if (pages.isEmpty()) {
+            status = "No hay páginas en la sesión actual"
+            return
+        }
+        scope.launch {
+            isProcessing = true
+            val name = "escaneo-actual"
+            val result = withContext(Dispatchers.Default) {
+                exportPagesTo(pages, format, name)
+            }
+            isProcessing = false
+            status = if (result) {
+                "Exportado: $name.${format.extension}"
+            } else {
+                "Error al exportar ${format.extension.uppercase()}"
+            }
+        }
+    }
+
+    private fun exportPagesTo(pages: List<ExportPage>, format: ExportFormat, baseName: String): Boolean {
+        if (pages.isEmpty()) return false
+        val dir = "${appFilesDir()}/exports".toPath()
+        FileSystem.SYSTEM.createDirectories(dir)
+        return docExporter.export(pages, format, "${dir}/${baseName}.${format.extension}")
+    }
+
+    private fun sanitizeFileName(name: String): String =
+        name.replace(Regex("[^A-Za-z0-9ÁÉÍÓÚáéíóúÑñ _-]"), "_").ifBlank { "documento" }
 
     private fun currentTime(): String = currentTimeMillis().toString()
 }

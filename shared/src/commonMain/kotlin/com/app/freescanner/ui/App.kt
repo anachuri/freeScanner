@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,15 +32,17 @@ fun App(
     viewModel: ScannerViewModel,
     cameraSession: CameraSession?,
     onPickImage: (() -> Unit)?,
+    onPickDocument: (() -> Unit)? = null,
 ) {
-    MaterialTheme {
+    MaterialTheme(colorScheme = darkColorScheme()) {
         Surface(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.fillMaxSize()) {
                 when (viewModel.screen) {
-                    ScannerViewModel.Screen.DOCUMENTS -> DocumentsScreen(viewModel)
+                    ScannerViewModel.Screen.DOCUMENTS -> DocumentsScreen(viewModel, onPickImage)
                     ScannerViewModel.Screen.CAMERA -> CameraScreen(viewModel, cameraSession, onPickImage)
                     ScannerViewModel.Screen.REVIEW -> ReviewScreen(viewModel)
                     ScannerViewModel.Screen.DOCUMENT_PAGES -> DocumentPagesScreen(viewModel)
+                    ScannerViewModel.Screen.CONVERT -> ConvertScreen(viewModel, onPickImage, onPickDocument)
                 }
 
                 if (viewModel.isProcessing) {

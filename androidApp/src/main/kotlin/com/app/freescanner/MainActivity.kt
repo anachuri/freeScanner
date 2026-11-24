@@ -3,6 +3,8 @@ package com.app.freescanner
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -24,7 +26,11 @@ import com.app.freescanner.ui.ScannerViewModel
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
+        // La app usa tema oscuro fijo: iconos claros sobre barras transparentes.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         super.onCreate(savedInstanceState)
         platformInit(this)
 
@@ -51,6 +57,20 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            // Explorador de archivos del dispositivo (solo imágenes).
+            val pickDocumentLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.OpenDocument(),
+            ) { uri ->
+                if (uri != null) {
+                    loadImageData(context, uri)?.let { viewModel.onImageSelected(it) }
+                }
+            }
+
+            // El botón atrás navega entre pantallas internas en vez de salir.
+            BackHandler(enabled = viewModel.screen != ScannerViewModel.Screen.DOCUMENTS) {
+                viewModel.navigateBack()
+            }
+
             App(
                 viewModel = viewModel,
                 cameraSession = CameraSession(
@@ -62,6 +82,7 @@ class MainActivity : ComponentActivity() {
                     preview = { modifier -> CameraPreview(cameraController, modifier) },
                 ),
                 onPickImage = { pickImageLauncher.launch("image/*") },
+                onPickDocument = { pickDocumentLauncher.launch(arrayOf("image/*")) },
             )
         }
     }
