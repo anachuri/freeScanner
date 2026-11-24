@@ -15,6 +15,12 @@ import org.opencv.android.OpenCVLoader
 import org.opencv.core.Point as CvPoint
 import org.opencv.imgproc.Imgproc
 
+private val OPEN_CV_LOCK = Any()
+private var openCvLoaded = false
+
+/** true si libopencv_java4 se cargó correctamente en esta sesión. */
+val isOpenCvLoaded: Boolean get() = openCvLoaded
+
 /**
  * Implementación Android del pipeline de escaneo con OpenCV.
  *
@@ -24,9 +30,31 @@ import org.opencv.imgproc.Imgproc
 actual class DocumentScanner actual constructor() {
 
     init {
-        if (!OpenCVLoader.initDebug()) {
-            // OpenCV no pudo cargar las librerías nativas; las llamadas fallarán de forma controlada.
+        // OpenCVLoader.initLocal() carga libopencv_java4.so y registra los
+        // métodos nativos. Fallback: carga directa de la librería.
+        synchronized(OPEN_CV_LOCK) {
+            if (!openCvLoaded) {
+                openCvLoaded = try {
+                    OpenCVLoader.initLocal() || run {
+                        System.loadLibrary("opencv_java4")
+                        true
+                    }
+                } catch (e: Throwable) {
+                    android.util.Log.e("DocumentScanner", "No se pudo cargar OpenCV", e)
+                    false
+                }
+                if (openCvLoaded) {
+                    android.util.Log.i("DocumentScanner", "OpenCV cargado correctamente")
+                }
+            }
         }
+    }
+
+    private fun guardLoaded(): Boolean {
+        if (!isOpenCvLoaded) {
+            android.util.Log.e("DocumentScanner", "OpenCV no está cargado; operación omitida")
+        }
+        return isOpenCvLoaded
     }
 
     private fun rgbaMat(image: ImageData): Mat {
@@ -44,6 +72,7 @@ actual class DocumentScanner actual constructor() {
     }
 
     actual fun detectEdges(image: ImageData): Quadrilateral? {
+        if (!guardLoaded()) return null
         val src = rgbaMat(image)
         val gray = Mat()
         Imgproc.cvtColor(src, gray, Imgproc.COLOR_RGBA2GRAY)
@@ -100,6 +129,7 @@ actual class DocumentScanner actual constructor() {
     }
 
     actual fun applyPerspectiveCorrection(image: ImageData, corners: Quadrilateral): ImageData {
+        if (!guardLoaded()) return image
         val src = rgbaMat(image)
         val srcPts = MatOfPoint2f(
             *corners.points.map { CvPoint(it.x.toDouble(), it.y.toDouble()) }.toTypedArray(),
@@ -139,6 +169,7 @@ actual class DocumentScanner actual constructor() {
     }
 
     actual fun applyScanFilter(image: ImageData): ImageData {
+        if (!guardLoaded()) return image
         val src = rgbaMat(image)
         val gray = Mat()
         Imgproc.cvtColor(src, gray, Imgproc.COLOR_RGBA2GRAY)

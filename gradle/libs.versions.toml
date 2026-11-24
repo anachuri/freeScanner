@@ -15,7 +15,7 @@ junit = "4.13.2"
 kotlin = "2.4.21"
 material3 = "1.12.0-alpha03"
 camerax = "1.6.2"
-opencv = "4.5.3"
+opencv = "4.12.0"
 tesseract4android = "4.9.0"
 pdfboxAndroid = "2.0.27.0"
 sqldelight = "2.4.1"
@@ -40,7 +40,7 @@ androidx-camera-core = { module = "androidx.camera:camera-core", version.ref = "
 androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
 androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
 androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
-opencv-android = { module = "com.quickbirdstudios:opencv", version.ref = "opencv" }
+opencv-android = { module = "org.opencv:opencv", version.ref = "opencv" }
 tesseract4android = { module = "cz.adaptech.tesseract4android:tesseract4android", version.ref = "tesseract4android" }
 pdfbox-android = { module = "com.tom-roush:pdfbox-android", version.ref = "pdfboxAndroid" }
 sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sqldelight" }
